@@ -57,3 +57,11 @@ Copy `Chat.md` from this folder into any location in your vault.
 - Message filenames are timestamps (`YYYYMMDD-HHMMSS-mmm.md`) so they sort naturally.
 - Sort key is `file.ctime` (write time); the "edited" indicator compares against `file.mtime`.
 - DataviewJS re-renders the view whenever files in the messages folder change.
+
+## Mobile
+
+Works on Obsidian Mobile (iOS / Android). Touch-specific tweaks:
+
+- Reply button and per-bubble timestamps are always visible on touch devices (no hover dependency).
+- Tap targets are enlarged on coarse pointers; the textarea uses 16px so iOS Safari doesn't auto-zoom on focus.
+- Chat height uses `dvh` so the view shrinks correctly when the soft keyboard appears.

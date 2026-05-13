@@ -18,7 +18,9 @@ style.textContent = `
 }
 .kchat-scroll {
     display: flex; flex-direction: column; gap: 1px;
-    max-height: 62vh; overflow-y: auto;
+    max-height: 62vh;
+    max-height: 62dvh;
+    overflow-y: auto;
     padding: 14px 12px;
     background: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
@@ -204,6 +206,29 @@ style.textContent = `
     flex-shrink: 0;
 }
 .kchat-reply-preview-cancel:hover { color: var(--text-normal); }
+
+/* Touch devices: no hover, so meta and reply button must be visible without it. */
+@media (hover: none) {
+    .kchat-meta { opacity: 0.55; }
+    .kchat-reply-btn { opacity: 0.55; pointer-events: auto; }
+    .kchat-bubble:hover, .kchat-reply-quote:hover, .kchat-reply-btn:hover { filter: none; }
+}
+
+/* Coarse pointer: enlarge tap targets; keep textarea ≥16px so iOS Safari doesn't auto-zoom. */
+@media (pointer: coarse) {
+    .kchat-reply-btn { width: 32px; height: 32px; font-size: 0.95em; }
+    .kchat-input button { width: 42px; height: 42px; font-size: 1.2em; }
+    .kchat-input textarea { font-size: 16px; min-height: 42px; padding: 10px 14px; }
+    .kchat-reply-preview-cancel { padding: 6px 10px; font-size: 1.25em; }
+    .kchat-bubble, .kchat-reply-btn, .kchat-reply-quote {
+        -webkit-tap-highlight-color: transparent;
+    }
+}
+
+/* Short viewports (phone + open keyboard, landscape): give the composer more room. */
+@media (max-height: 700px) {
+    .kchat-scroll { max-height: 50vh; max-height: 50dvh; }
+}
 `;
 
 const pages = dv.pages(`"${FOLDER}"`)
