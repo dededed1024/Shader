@@ -1,4 +1,4 @@
-# ObsidianChat — iMessage-style chat note
+# Obsidian Chat
 
 A lightweight chat-style note for Obsidian, designed for jotting down a few lines at a time. Works with **DataviewJS** alone — no custom plugin required.
 
