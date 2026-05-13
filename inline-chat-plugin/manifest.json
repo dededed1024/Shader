@@ -1,0 +1,10 @@
+{
+    "id": "inline-chat",
+    "name": "Inline Chat",
+    "version": "0.1.0",
+    "minAppVersion": "1.4.0",
+    "description": "iMessage-style chat notes. Each message is its own file, with inline reply, edited timestamps, and full mobile support. Requires the Dataview plugin.",
+    "author": "dededed1024",
+    "authorUrl": "https://github.com/dededed1024",
+    "isDesktopOnly": false
+}
