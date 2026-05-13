@@ -58,8 +58,14 @@ style.textContent = `
 }
 .kchat-row:hover .kchat-meta { opacity: 1; }
 .kchat-meta .kchat-edited { color: var(--text-accent); font-size: 0.95em; }
+.kchat-bubble-col {
+    display: flex; flex-direction: column;
+    align-items: flex-end; gap: 2px;
+    max-width: 72%; min-width: 0;
+}
+.kchat-row.kchat-them .kchat-bubble-col { align-items: flex-start; }
 .kchat-bubble {
-    max-width: 72%;
+    max-width: 100%;
     padding: 8px 13px;
     background: linear-gradient(180deg, #2AA4FF 0%, #007AFF 100%);
     color: #fff;
@@ -68,8 +74,48 @@ style.textContent = `
     line-height: 1.38; font-size: 0.95em;
     cursor: pointer;
     box-shadow: 0 1px 1px rgba(0,0,0,0.06);
-    transition: filter 0.1s;
+    transition: filter 0.1s, box-shadow 0.3s;
     position: relative;
+}
+/* 답장 원본 미리보기 (말풍선 위에 작게) */
+.kchat-reply-quote {
+    max-width: 100%;
+    padding: 4px 12px;
+    background: var(--background-secondary);
+    color: var(--text-muted);
+    border-radius: 12px;
+    font-size: 0.76em; line-height: 1.3;
+    cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-left: 3px solid #007AFF;
+    opacity: 0.85; transition: opacity 0.15s;
+}
+.kchat-reply-quote:hover { opacity: 1; }
+.kchat-row.kchat-them .kchat-reply-quote {
+    border-left: none; border-right: 3px solid #007AFF;
+}
+/* 호버 시 나타나는 답장 버튼 (내가 보낸 말풍선 옆) */
+.kchat-reply-btn {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--background-modifier-hover);
+    color: var(--text-muted);
+    border: none; cursor: pointer; padding: 0;
+    font-size: 0.85em;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.15s, background 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.kchat-row:hover .kchat-reply-btn { opacity: 0.7; pointer-events: auto; }
+.kchat-reply-btn:hover { opacity: 1; background: #007AFF; color: #fff; }
+/* 원본으로 점프했을 때 강조 */
+.kchat-highlight .kchat-bubble {
+    animation: kchat-pulse 1.4s ease;
+}
+@keyframes kchat-pulse {
+    0%, 100% { box-shadow: 0 1px 1px rgba(0,0,0,0.06); }
+    30%      { box-shadow: 0 0 0 4px rgba(0,122,255,0.45); }
 }
 .kchat-bubble:hover { filter: brightness(0.96); }
 /* iMessage 꼬리 - 오른쪽 아래 (나) */
@@ -147,17 +193,35 @@ style.textContent = `
     cursor: default;
 }
 .kchat-input button:active:not(:disabled) { transform: scale(0.94); }
-.kchat-persona {
-    height: 36px; padding: 0 12px;
-    border-radius: 18px; border: none;
-    cursor: pointer; font-weight: 700; font-size: 0.82em;
-    font-family: inherit; flex-shrink: 0;
-    transition: background 0.15s;
+.kchat-composer { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kchat-composer textarea { width: 100%; box-sizing: border-box; }
+/* 작성창의 답장 미리보기 칩 */
+.kchat-reply-preview {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    background: var(--background-secondary);
+    border-radius: 10px;
+    border-left: 3px solid #007AFF;
+    font-size: 0.82em;
 }
-.kchat-persona.kchat-as-me { background: #007AFF; color: #fff; }
-.kchat-persona.kchat-as-them { background: #E9E9EB; color: #000; }
-.theme-dark .kchat-persona.kchat-as-them { background: #3B3B3D; color: #fff; }
-.kchat-persona:active { transform: scale(0.94); }
+.kchat-reply-preview-text {
+    flex: 1; min-width: 0; color: var(--text-muted);
+    display: flex; flex-direction: column;
+}
+.kchat-reply-preview-text > .kchat-reply-preview-body {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kchat-reply-preview-label {
+    color: #007AFF; font-weight: 600; font-size: 0.78em;
+    margin-bottom: 2px;
+}
+.kchat-reply-preview-cancel {
+    background: transparent; border: none;
+    color: var(--text-muted); cursor: pointer;
+    font-size: 1.1em; padding: 0 4px; line-height: 1;
+    flex-shrink: 0;
+}
+.kchat-reply-preview-cancel:hover { color: var(--text-normal); }
 `;
 
 // ---- 메시지 목록 ----
@@ -186,15 +250,19 @@ const sameCluster = (a, b) => {
         && a.created.toFormat("yyyyMMddHHmm") === b.created.toFormat("yyyyMMddHHmm");
 };
 
+// 메시지 본문/메타데이터 캐시 (답장 원본 미리보기 채울 때 쓰임)
+const cache = new Map(); // basename -> { content, row }
+
 let lastDateKey = "";
-let lastTimeLabel = "";
 const rows = [];
+let enterReplyMode; // 아래에서 정의됨
+
 for (let i = 0; i < pages.length; i++) {
     const p = pages[i];
     const created = p.file.ctime;
     const modified = p.file.mtime;
 
-    // 날짜/시간 구분선: 날짜가 바뀌거나, 15분 이상 텀이 생기면 새 라벨
+    // 날짜/시간 구분선
     const dateKey = created.toFormat("yyyy-MM-dd");
     const prev = i > 0 ? pages[i - 1].file.ctime : null;
     const gap = prev ? created.toMillis() - prev.toMillis() : Infinity;
@@ -204,7 +272,6 @@ for (let i = 0; i < pages.length; i++) {
         label.createSpan({ text: day });
         label.createSpan({ cls: "kchat-date-time", text: " · " + time });
         lastDateKey = dateKey;
-        lastTimeLabel = time;
     }
 
     // 내용 읽기 (frontmatter 제거)
@@ -213,13 +280,15 @@ for (let i = 0; i < pages.length; i++) {
     try { raw = await app.vault.read(fileObj); } catch (_) {}
     const content = raw.replace(/^---[\s\S]*?---\s*/m, "").trim();
 
-    // 발신자 판별 (frontmatter `from: them` → 상대)
     const from = (p.from === "them") ? "them" : "me";
+    const replyTo = (typeof p.reply_to === "string") ? p.reply_to : null;
 
     const row = scroll.createDiv({
         cls: "kchat-row" + (from === "them" ? " kchat-them" : "")
     });
-    rows.push({ row, created, modified, from });
+    const rowData = { row, created, modified, from, basename: p.file.name };
+    rows.push(rowData);
+    cache.set(p.file.name, { content, row });
 
     const meta = row.createDiv({ cls: "kchat-meta" });
     const edited = modified.toMillis() - created.toMillis() > 2000;
@@ -230,7 +299,42 @@ for (let i = 0; i < pages.length; i++) {
         meta.createDiv({ text: fmtTime(created) });
     }
 
-    const bubble = row.createDiv({ cls: "kchat-bubble", text: content });
+    // 내가 보낸 메시지에만 호버 답장 버튼 (말풍선 왼쪽에 위치)
+    let replyBtn = null;
+    if (from === "me") {
+        replyBtn = row.createEl("button", {
+            cls: "kchat-reply-btn",
+            text: "↩",
+            attr: { title: "이 메시지에 답장" }
+        });
+        replyBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            enterReplyMode(p.file.name, content);
+        });
+    }
+
+    // 말풍선 column 래퍼 (위에 답장 미리보기, 아래에 말풍선)
+    const bcol = row.createDiv({ cls: "kchat-bubble-col" });
+
+    // 답장 원본 미리보기
+    if (replyTo) {
+        const original = cache.get(replyTo) || cache.get(replyTo + ".md");
+        const quote = bcol.createDiv({ cls: "kchat-reply-quote" });
+        if (original) {
+            quote.textContent = original.content.replace(/\s+/g, " ").slice(0, 100);
+            quote.addEventListener("click", (e) => {
+                e.stopPropagation();
+                original.row.scrollIntoView({ behavior: "smooth", block: "center" });
+                original.row.classList.add("kchat-highlight");
+                setTimeout(() => original.row.classList.remove("kchat-highlight"), 1500);
+            });
+        } else {
+            quote.textContent = "(원본을 찾을 수 없음)";
+            quote.style.fontStyle = "italic";
+        }
+    }
+
+    const bubble = bcol.createDiv({ cls: "kchat-bubble", text: content });
     bubble.addEventListener("click", () => {
         app.workspace.openLinkText(p.file.path, "", false);
     });
@@ -249,14 +353,21 @@ requestAnimationFrame(() => { scroll.scrollTop = scroll.scrollHeight; });
 
 // ---- 입력창 ----
 const inputBox = root.createDiv({ cls: "kchat-input" });
+const composer = inputBox.createDiv({ cls: "kchat-composer" });
 
-// 발신자 토글 (DOM 순서대로: [페르소나] [텍스트입력] [전송])
-const persona = inputBox.createEl("button", {
-    cls: "kchat-persona kchat-as-me",
-    text: "나",
-    attr: { "aria-label": "발신자 전환", "title": "클릭해서 발신자 전환" }
+// 답장 미리보기 칩 (답장 모드일 때만 표시)
+const replyPreview = composer.createDiv({ cls: "kchat-reply-preview" });
+replyPreview.style.display = "none";
+const replyTextWrap = replyPreview.createDiv({ cls: "kchat-reply-preview-text" });
+const replyLabel = replyTextWrap.createDiv({ cls: "kchat-reply-preview-label", text: "↩ 답장하는 메시지" });
+const replyBodyEl = replyTextWrap.createDiv({ cls: "kchat-reply-preview-body" });
+const replyCancelBtn = replyPreview.createEl("button", {
+    cls: "kchat-reply-preview-cancel",
+    text: "×",
+    attr: { "aria-label": "답장 취소", "title": "답장 취소 (Esc)" }
 });
-const ta = inputBox.createEl("textarea", {
+
+const ta = composer.createEl("textarea", {
     attr: { placeholder: "iMessage" }
 });
 const btn = inputBox.createEl("button", {
@@ -265,16 +376,22 @@ const btn = inputBox.createEl("button", {
 });
 btn.disabled = true;
 
-// 페르소나 상태 + 핸들러 (모든 요소가 생성된 뒤에 바인딩)
-let asThem = false;
-const setPersona = (them) => {
-    asThem = them;
-    persona.textContent = them ? "상대" : "나";
-    persona.classList.toggle("kchat-as-me", !them);
-    persona.classList.toggle("kchat-as-them", them);
-    ta.placeholder = them ? "상대방 답장 입력…" : "iMessage";
+// ---- 답장 모드 상태 ----
+let replyTo = null; // 답장 대상의 basename (확장자 제외)
+
+enterReplyMode = (basename, originalText) => {
+    replyTo = basename;
+    replyBodyEl.textContent = originalText.replace(/\s+/g, " ").slice(0, 120);
+    replyPreview.style.display = "flex";
+    ta.placeholder = "답장…";
+    ta.focus();
 };
-persona.onclick = () => { setPersona(!asThem); ta.focus(); };
+const cancelReply = () => {
+    replyTo = null;
+    replyPreview.style.display = "none";
+    ta.placeholder = "iMessage";
+};
+replyCancelBtn.onclick = cancelReply;
 
 const pad = (n) => String(n).padStart(2, "0");
 const send = async () => {
@@ -286,11 +403,15 @@ const send = async () => {
         `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}` +
         `-${String(now.getMilliseconds()).padStart(3, "0")}`;
     const path = `${FOLDER}/${stamp}.md`;
-    const body = asThem ? `---\nfrom: them\n---\n${txt}` : txt;
+    // 답장일 때만 frontmatter (from: them + reply_to) 부착
+    const body = replyTo
+        ? `---\nfrom: them\nreply_to: "${replyTo}"\n---\n${txt}`
+        : txt;
     try {
         await app.vault.create(path, body);
         ta.value = "";
         ta.style.height = "auto";
+        cancelReply();
         ta.focus();
     } catch (e) {
         new Notice("메시지 저장 실패: " + e.message);
@@ -304,6 +425,9 @@ ta.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
         e.preventDefault();
         send();
+    } else if (e.key === "Escape" && replyTo) {
+        e.preventDefault();
+        cancelReply();
     }
 });
 
