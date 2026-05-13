@@ -1,25 +1,24 @@
-# ObsidianChat — KakaoTalk / iMessage 스타일 채팅 노트
+# ObsidianChat — iMessage-style chat note
 
-옵시디언 안에서 카톡처럼 한두 줄씩 가볍게 쓰는 메모용 채팅뷰입니다.
-**DataviewJS** 만으로 동작해서 별도 플러그인을 만들 필요가 없습니다.
+A lightweight chat-style note for Obsidian, designed for jotting down a few lines at a time. Works with **DataviewJS** alone — no custom plugin required.
 
-## 미리 보기 동작
+## What it does
 
-- 메시지는 **오래된 순으로 위에 쌓이고**, 열면 **항상 최신 메시지가 보이도록** 자동 스크롤됩니다.
-- 각 말풍선 옆에 **쓴 시간**이 표시되고, 수정한 경우 **편집됨 / 수정 시각**이 표시됩니다.
-- 날짜가 바뀌면 자동으로 날짜 구분선이 들어갑니다.
-- 말풍선을 **클릭하면 해당 메시지 파일이 열려서 바로 수정** 가능합니다.
-- 내가 보낸 말풍선에 **호버하면 ↩ 답장 버튼**이 나타납니다.
+- Messages stack **oldest at the top** and the view **auto-scrolls to the latest** every time you open it.
+- Each bubble shows the **time it was written**, plus **"edited" + modified time** if you change it later.
+- A date separator appears automatically whenever the day changes or there's a gap of more than 15 minutes.
+- **Click a bubble** to open its source `.md` file and edit it in place.
+- **Hover your own bubble** to reveal an **↩ reply button**.
 
-## 답장 (iMessage 인라인 답장)
+## Inline reply (iMessage style)
 
-1. 내가 보낸 말풍선 위에 마우스를 올리면 왼쪽에 **↩** 버튼이 보입니다.
-2. 클릭하면 입력창 위에 **원본 미리보기 칩**이 뜨면서 답장 모드로 들어갑니다.
-3. 메시지를 적고 Enter → **상대방이 보낸 답장** 처럼 왼쪽 회색 말풍선으로 표시되고, 그 위에는 원본 메시지의 한 줄 미리보기가 따라붙습니다.
-4. 답장 미리보기를 클릭하면 **원본 메시지로 자동 스크롤** 되며 잠깐 강조 표시됩니다.
-5. 답장 모드 취소는 칩의 **×** 또는 **Esc**.
+1. Hover over one of your bubbles and click the **↩** button on its left.
+2. A **preview chip** appears above the composer showing the message you're replying to.
+3. Type your reply and hit Enter → it renders as a **gray left-aligned bubble** (as if from another person), with a small quote of the original above it.
+4. Click that quote to **scroll to the original message** — it briefly pulses to mark its location.
+5. Cancel reply mode with the chip's **×** or by pressing **Esc**.
 
-저장 형식 — 답장 메시지 파일에는 다음 frontmatter 가 자동으로 붙습니다:
+Storage — reply messages get this frontmatter automatically:
 
 ```yaml
 ---
@@ -28,34 +27,33 @@ reply_to: "20260513-153045-123"
 ---
 ```
 
-`reply_to` 값은 원본 메시지의 파일명(확장자 제외)이며, 손으로 편집해서 답장 대상을 바꾸거나 frontmatter 를 제거해 일반 메시지로 되돌릴 수 있습니다.
+`reply_to` is the basename (no extension) of the original message file. You can edit the frontmatter by hand to retarget the reply, or remove it to turn the reply back into a normal message.
 
-## 준비
+## Setup
 
-1. 커뮤니티 플러그인에서 **Dataview** 설치 후 활성화
-2. Dataview 설정에서 **Enable JavaScript Queries** 켜기 (필수)
+1. Install and enable the **Dataview** community plugin.
+2. In Dataview's settings, turn on **Enable JavaScript Queries** (required).
 
-## 설치
+## Install
 
-이 폴더의 `Chat.md` 를 본인 볼트의 원하는 위치에 복사해서 두면 됩니다.
+Copy `Chat.md` from this folder into any location in your vault.
 
-- 이 노트 옆에 자동으로 `<노트이름>-messages/` 폴더가 생성되고, 각 메시지가 그 안에 작은 `.md` 파일로 저장됩니다.
-- 노트를 여러 개 (`일기.md`, `아이디어.md` …) 만들면 각각 독립된 채팅방이 됩니다.
+- A `<note-name>-messages/` folder is created next to the note; each message lives inside it as a small `.md` file.
+- You can have multiple chat notes (`journal.md`, `ideas.md`, …) — each one is an independent thread.
 
-## 사용
+## Usage
 
-- 아래쪽 입력창에 텍스트 입력
-- `Enter` 전송 · `Shift + Enter` 줄바꿈
-- 한글 입력 중 조합 확정용 Enter 는 전송으로 처리하지 않도록 처리되어 있습니다.
+- Type into the composer at the bottom.
+- `Enter` to send · `Shift + Enter` for a newline.
+- IME composition is detected so the confirm-Enter from Korean/Japanese/Chinese input methods will not accidentally send.
 
-## 메시지 수정 / 삭제
+## Edit / delete a message
 
-- 말풍선을 클릭 → 해당 메시지 `.md` 파일이 열림 → 내용 수정 → 저장
-  - 저장하면 파일의 mtime 이 갱신되어 **"수정됨 HH:mm"** 으로 표시됩니다.
-- 삭제하려면 해당 메시지 파일을 그냥 지우면 됩니다.
+- Click a bubble → its `.md` file opens → edit → save. The `mtime` updates and the bubble shows **"edited HH:mm"**.
+- To delete a message, just delete its file.
 
-## 동작 원리
+## How it works
 
-- 메시지 파일명은 정렬이 보장되도록 타임스탬프(`YYYYMMDD-HHMMSS-mmm.md`) 로 저장합니다.
-- 정렬 키는 `file.ctime` (작성 시각), 수정 표시는 `file.mtime` 입니다.
-- DataviewJS 가 파일 변경을 감지해 뷰가 자동으로 갱신됩니다.
+- Message filenames are timestamps (`YYYYMMDD-HHMMSS-mmm.md`) so they sort naturally.
+- Sort key is `file.ctime` (write time); the "edited" indicator compares against `file.mtime`.
+- DataviewJS re-renders the view whenever files in the messages folder change.

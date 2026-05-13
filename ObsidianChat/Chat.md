@@ -212,13 +212,12 @@ const pages = dv.pages(`"${FOLDER}"`)
 
 const scroll = root.createDiv({ cls: "kchat-scroll" });
 if (pages.length === 0) {
-    scroll.createDiv({ cls: "kchat-empty", text: "아직 메시지가 없어요. 아래에 적어보세요." });
+    scroll.createDiv({ cls: "kchat-empty", text: "No messages yet. Start typing below." });
 }
 
 const preview = (s, n) => s.replace(/\s+/g, " ").slice(0, n);
-const ko = (dt) => dt.setLocale("ko");
-const fmtTime = (dt) => ko(dt).toFormat("a h:mm");
-const fmtDayLabel = (dt) => ko(dt).toFormat("cccc, M월 d일");
+const fmtTime = (dt) => dt.toFormat("h:mm a");
+const fmtDayLabel = (dt) => dt.toFormat("cccc, LLLL d");
 const minuteBucket = (dt) => Math.floor(dt.toMillis() / 60000);
 const sameCluster = (a, b) =>
     !!a && !!b && a.from === b.from && minuteBucket(a.created) === minuteBucket(b.created);
@@ -229,18 +228,18 @@ const composer = inputBox.createDiv({ cls: "kchat-composer" });
 const replyPreview = composer.createDiv({ cls: "kchat-reply-preview" });
 replyPreview.style.display = "none";
 const replyTextWrap = replyPreview.createDiv({ cls: "kchat-reply-preview-text" });
-replyTextWrap.createDiv({ cls: "kchat-reply-preview-label", text: "↩ 답장하는 메시지" });
+replyTextWrap.createDiv({ cls: "kchat-reply-preview-label", text: "↩ Replying to" });
 const replyBodyEl = replyTextWrap.createDiv({ cls: "kchat-reply-preview-body" });
 const replyCancelBtn = replyPreview.createEl("button", {
     cls: "kchat-reply-preview-cancel",
     text: "×",
-    attr: { "aria-label": "답장 취소", "title": "답장 취소 (Esc)" }
+    attr: { "aria-label": "Cancel reply", "title": "Cancel reply (Esc)" }
 });
 
 const ta = composer.createEl("textarea", { attr: { placeholder: "iMessage" } });
 const btn = inputBox.createEl("button", {
     text: "↑",
-    attr: { "aria-label": "전송", "title": "전송 (Enter)" }
+    attr: { "aria-label": "Send", "title": "Send (Enter)" }
 });
 btn.disabled = true;
 
@@ -250,7 +249,7 @@ const enterReplyMode = (basename, originalText) => {
     replyTo = basename;
     replyBodyEl.textContent = preview(originalText, 120);
     replyPreview.style.display = "flex";
-    ta.placeholder = "답장…";
+    ta.placeholder = "Reply…";
     ta.focus();
 };
 const cancelReply = () => {
@@ -276,7 +275,7 @@ const send = async () => {
         cancelReply();
         ta.focus();
     } catch (e) {
-        new Notice("메시지 저장 실패: " + e.message);
+        new Notice("Failed to save message: " + e.message);
     }
 };
 btn.onclick = send;
@@ -338,7 +337,7 @@ for (let i = 0; i < pages.length; i++) {
 
     const meta = row.createDiv({ cls: "kchat-meta" });
     if (modified.toMillis() - created.toMillis() > 2000) {
-        meta.createDiv({ cls: "kchat-edited", text: "편집됨" });
+        meta.createDiv({ cls: "kchat-edited", text: "edited" });
         meta.createDiv({ text: fmtTime(modified) });
     } else {
         meta.createDiv({ text: fmtTime(created) });
@@ -348,7 +347,7 @@ for (let i = 0; i < pages.length; i++) {
         const replyBtn = row.createEl("button", {
             cls: "kchat-reply-btn",
             text: "↩",
-            attr: { title: "이 메시지에 답장" }
+            attr: { title: "Reply to this message" }
         });
         replyBtn.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -370,7 +369,7 @@ for (let i = 0; i < pages.length; i++) {
                 setTimeout(() => original.row.classList.remove("kchat-highlight"), 1500);
             });
         } else {
-            quote.textContent = "(원본을 찾을 수 없음)";
+            quote.textContent = "(original not found)";
             quote.style.fontStyle = "italic";
         }
     }
