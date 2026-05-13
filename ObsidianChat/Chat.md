@@ -72,7 +72,7 @@ style.textContent = `
     position: relative;
 }
 .kchat-bubble:hover { filter: brightness(0.96); }
-/* iMessage 꼬리 - 오른쪽 아래 */
+/* iMessage 꼬리 - 오른쪽 아래 (나) */
 .kchat-row.kchat-tail .kchat-bubble::after {
     content: ""; position: absolute;
     right: -6px; bottom: 0;
@@ -88,6 +88,31 @@ style.textContent = `
     background: var(--background-primary);
     border-bottom-left-radius: 10px;
     z-index: -1;
+}
+/* 상대방 (왼쪽, 회색) */
+.kchat-row.kchat-them { justify-content: flex-start; }
+.kchat-row.kchat-them .kchat-meta {
+    order: 2; align-items: flex-start;
+}
+.kchat-row.kchat-them .kchat-bubble {
+    background: #E9E9EB; color: #000;
+}
+.theme-dark .kchat-row.kchat-them .kchat-bubble {
+    background: #3B3B3D; color: #fff;
+}
+.kchat-row.kchat-them.kchat-tail .kchat-bubble::after {
+    right: auto; left: -6px;
+    background: #E9E9EB;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 14px 12px;
+}
+.theme-dark .kchat-row.kchat-them.kchat-tail .kchat-bubble::after {
+    background: #3B3B3D;
+}
+.kchat-row.kchat-them.kchat-tail .kchat-bubble::before {
+    right: auto; left: -10px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 10px;
 }
 .kchat-empty {
     color: var(--text-muted); text-align: center;
@@ -122,6 +147,17 @@ style.textContent = `
     cursor: default;
 }
 .kchat-input button:active:not(:disabled) { transform: scale(0.94); }
+.kchat-persona {
+    height: 36px; padding: 0 12px;
+    border-radius: 18px; border: none;
+    cursor: pointer; font-weight: 700; font-size: 0.82em;
+    font-family: inherit; flex-shrink: 0;
+    transition: background 0.15s;
+}
+.kchat-persona.kchat-as-me { background: #007AFF; color: #fff; }
+.kchat-persona.kchat-as-them { background: #E9E9EB; color: #000; }
+.theme-dark .kchat-persona.kchat-as-them { background: #3B3B3D; color: #fff; }
+.kchat-persona:active { transform: scale(0.94); }
 `;
 
 // ---- 메시지 목록 ----
@@ -143,11 +179,11 @@ const fmtDateLabel = (dt) => {
     return { day: dayLabel, time: fmtTime(dt) };
 };
 
-// 연속된 메시지 묶음의 마지막에만 꼬리를 붙이기 위해 같은 분(minute) 인지 비교
+// 같은 발신자 & 같은 분(minute) 끼리만 묶기 (클러스터의 마지막에만 꼬리)
 const sameCluster = (a, b) => {
     if (!a || !b) return false;
-    return Math.abs(b.toMillis() - a.toMillis()) < 60_000
-        && a.toFormat("yyyyMMddHHmm") === b.toFormat("yyyyMMddHHmm");
+    return a.from === b.from
+        && a.created.toFormat("yyyyMMddHHmm") === b.created.toFormat("yyyyMMddHHmm");
 };
 
 let lastDateKey = "";
@@ -177,8 +213,13 @@ for (let i = 0; i < pages.length; i++) {
     try { raw = await app.vault.read(fileObj); } catch (_) {}
     const content = raw.replace(/^---[\s\S]*?---\s*/m, "").trim();
 
-    const row = scroll.createDiv({ cls: "kchat-row" });
-    rows.push({ row, created, modified });
+    // 발신자 판별 (frontmatter `from: them` → 상대)
+    const from = (p.from === "them") ? "them" : "me";
+
+    const row = scroll.createDiv({
+        cls: "kchat-row" + (from === "them" ? " kchat-them" : "")
+    });
+    rows.push({ row, created, modified, from });
 
     const meta = row.createDiv({ cls: "kchat-meta" });
     const edited = modified.toMillis() - created.toMillis() > 2000;
@@ -198,7 +239,7 @@ for (let i = 0; i < pages.length; i++) {
 // 클러스터의 마지막 메시지에만 꼬리 부착
 for (let i = 0; i < rows.length; i++) {
     const next = rows[i + 1];
-    if (!next || !sameCluster(rows[i].created, next.created)) {
+    if (!next || !sameCluster(rows[i], next)) {
         rows[i].row.classList.add("kchat-tail");
     }
 }
@@ -208,6 +249,13 @@ requestAnimationFrame(() => { scroll.scrollTop = scroll.scrollHeight; });
 
 // ---- 입력창 ----
 const inputBox = root.createDiv({ cls: "kchat-input" });
+
+// 발신자 토글 (DOM 순서대로: [페르소나] [텍스트입력] [전송])
+const persona = inputBox.createEl("button", {
+    cls: "kchat-persona kchat-as-me",
+    text: "나",
+    attr: { "aria-label": "발신자 전환", "title": "클릭해서 발신자 전환" }
+});
 const ta = inputBox.createEl("textarea", {
     attr: { placeholder: "iMessage" }
 });
@@ -216,6 +264,17 @@ const btn = inputBox.createEl("button", {
     attr: { "aria-label": "전송", "title": "전송 (Enter)" }
 });
 btn.disabled = true;
+
+// 페르소나 상태 + 핸들러 (모든 요소가 생성된 뒤에 바인딩)
+let asThem = false;
+const setPersona = (them) => {
+    asThem = them;
+    persona.textContent = them ? "상대" : "나";
+    persona.classList.toggle("kchat-as-me", !them);
+    persona.classList.toggle("kchat-as-them", them);
+    ta.placeholder = them ? "상대방 답장 입력…" : "iMessage";
+};
+persona.onclick = () => { setPersona(!asThem); ta.focus(); };
 
 const pad = (n) => String(n).padStart(2, "0");
 const send = async () => {
@@ -227,8 +286,9 @@ const send = async () => {
         `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}` +
         `-${String(now.getMilliseconds()).padStart(3, "0")}`;
     const path = `${FOLDER}/${stamp}.md`;
+    const body = asThem ? `---\nfrom: them\n---\n${txt}` : txt;
     try {
-        await app.vault.create(path, txt);
+        await app.vault.create(path, body);
         ta.value = "";
         ta.style.height = "auto";
         ta.focus();
